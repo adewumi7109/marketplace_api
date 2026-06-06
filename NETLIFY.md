@@ -43,4 +43,6 @@ For production, prefer running migrations intentionally from your machine or CI 
 
 ## Prisma Notes
 
-The Prisma client is generated during install and build. The schema includes `rhel-openssl-3.0.x`, which is required for Netlify's Node 20 serverless runtime.
+The Prisma client is generated during install and build. The schema includes `native` for local development and `rhel-openssl-3.0.x`, which Prisma documents for Netlify's Node 20 serverless runtime.
+
+`PRISMA_CLI_BINARY_TARGETS` in `netlify.toml` intentionally does not include `native`; that environment variable only accepts concrete platform targets.
