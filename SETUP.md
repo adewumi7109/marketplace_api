@@ -235,6 +235,8 @@ Built-in template types:
 
 ## Production Deployment (Vercel)
 
+For Netlify deployment, see `NETLIFY.md`.
+
 ```bash
 # Install Vercel CLI
 npm i -g vercel
