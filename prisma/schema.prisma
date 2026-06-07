@@ -28,10 +28,12 @@ model Store {
   description   String?
   logo          String?
   banner        String?
+  bannerText    String?        @map("banner_text")
   primaryColor  String         @default("#2563eb")
   phone         String?
   email         String?
   address       String?
+  storeAddress  String?        @map("store_address")
   isActive      Boolean        @default(true)
   isVerified    Boolean        @default(false)
   locationId    String?
@@ -44,7 +46,9 @@ model Store {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   templateId    String
   template      Template       @relation(fields: [templateId], references: [id])
+  templateConfig Json          @default("{}") @map("template_config")
   products      Product[]
+  productCategories ProductCategory[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -65,14 +69,17 @@ model Product {
   images           String[]
   inStock          Boolean            @default(true)
   isActive         Boolean            @default(true)
+  pushToMarketplace Boolean           @default(false) @map("push_to_marketplace")
   storeId          String
   isNegotiable     Boolean            @default(true)
   locationId       String?
   productClicks    ProductClick[]
   location         Location?          @relation(fields: [locationId], references: [id])
   store            Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  categoryId       String
-  category         ProductCategory    @relation(fields: [categoryId], references: [id])
+  categoryId       String?
+  category         ProductCategory?   @relation("StoreProductCategory", fields: [categoryId], references: [id])
+  marketplaceCategoryId String?       @map("marketplace_category_id")
+  marketplaceCategory ProductCategory? @relation("MarketplaceProductCategory", fields: [marketplaceCategoryId], references: [id])
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   ProductAttribute ProductAttribute[]
@@ -80,19 +87,28 @@ model Product {
   @@unique([storeId, slug])
   @@index([storeId])
   @@index([categoryId])
+  @@index([marketplaceCategoryId])
+  @@index([pushToMarketplace])
   @@map("products")
 }
 
 model ProductCategory {
   id          String    @id @default(cuid())
-  name        String    @unique
-  slug        String    @unique
+  name        String
+  slug        String
   description String?
   icon        String?
   isActive    Boolean   @default(true)
-  products    Product[]
+  storeId     String?
+  store       Store?    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products    Product[] @relation("StoreProductCategory")
+  marketplaceProducts Product[] @relation("MarketplaceProductCategory")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@unique([storeId, slug])
+  @@index([storeId])
+  @@index([slug])
   @@map("product_categories")
 }
 
