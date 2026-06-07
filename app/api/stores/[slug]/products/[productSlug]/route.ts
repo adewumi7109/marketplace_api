@@ -1,7 +1,6 @@
 import { successResponse, errorResponse, serverErrorResponse } from "@/utils/response";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { generateWhatsAppLink } from "@/utils/slug";
 import { attachProductMetrics } from "@/lib/productMetrics";
 
 // GET /api/stores/:slug/products/:productSlug - public
@@ -19,8 +18,10 @@ export async function GET(
         phone: true,
         logo: true,
         banner: true,
+        bannerText: true,
         description: true,
         primaryColor: true,
+        storeAddress: true,
         latitude: true,
         longitude: true,
         locationId: true,
@@ -31,15 +32,17 @@ export async function GET(
 
     if (!store) return errorResponse("Store not found", 404);
 
-    const product = await prisma.product.findUnique({
+    const product = await prisma.product.findFirst({
       where: {
-        storeId_slug: {
-          storeId: store.id,
-          slug: params.productSlug,
-        },
+        storeId: store.id,
+        OR: [
+          { slug: params.productSlug },
+          { id: params.productSlug },
+        ],
       },
       include: {
         category: true,
+        marketplaceCategory: true,
         location: true,
       },
     });
@@ -52,15 +55,6 @@ export async function GET(
     const result = {
       ...productWithMetrics,
       store,
-      ...(store.phone
-        ? {
-            whatsappOrderLink: generateWhatsAppLink(
-              store.phone,
-              product.name,
-              product.price?.toString() ?? "0"
-            ),
-          }
-        : {}),
     };
 
     return successResponse(result);

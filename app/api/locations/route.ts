@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
         products: {
           some: {
             isActive: true,
+            pushToMarketplace: true,
           },
         },
       }),

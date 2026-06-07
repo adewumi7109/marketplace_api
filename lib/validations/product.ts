@@ -20,8 +20,10 @@ export const CreateProductSchema = z.object({
   images: z.array(imagePath).default([]),
   inStock: z.boolean().default(true),
   isNegotiable: z.boolean().default(true),
+  pushToMarketplace: z.boolean().default(false),
   locationId: z.string().cuid("Invalid location ID").optional(),
-  categoryId: z.string().cuid("Invalid category ID"),
+  categoryId: z.string().cuid("Invalid category ID").optional(),
+  marketplaceCategoryId: z.string().cuid("Invalid marketplace category ID").optional(),
 });
 
 export const UpdateProductSchema = CreateProductSchema.partial().extend({

@@ -15,7 +15,15 @@ export async function GET(req: NextRequest) {
     const city = searchParams.get("city");
     const country = searchParams.get("country");
 
-    const where: any = { isActive: true };
+    const where: any = {
+      isActive: true,
+      products: {
+        some: {
+          isActive: true,
+          pushToMarketplace: true,
+        },
+      },
+    };
 
     if (q) {
       where.OR = [

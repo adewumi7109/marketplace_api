@@ -29,9 +29,11 @@ export async function GET(req: NextRequest) {
     // ───────────────────── WHERE CLAUSE ─────────────────────
     const where: Prisma.ProductWhereInput = {
       isActive: true,
+      pushToMarketplace: true,
+      marketplaceCategoryId: { not: null },
 
       // CATEGORY FILTER
-      ...(categoryId && { categoryId }),
+      ...(categoryId && { marketplaceCategoryId: categoryId }),
 
       // STORE FILTER
       ...(storeId && { storeId }),
@@ -113,6 +115,7 @@ export async function GET(req: NextRequest) {
 
         include: {
           category: true,
+          marketplaceCategory: true,
           location: true,
 
           store: {

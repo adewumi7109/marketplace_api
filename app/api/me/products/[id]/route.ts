@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticate } from "@/lib/auth";
 import { UpdateProductSchema } from "@/lib/validations/product";
-import { generateWhatsAppLink } from "@/utils/slug";
 import { formDataToObject, isMultipartRequest, saveImageFile } from "@/lib/uploads";
 import { attachProductMetrics } from "@/lib/productMetrics";
 
@@ -17,7 +16,7 @@ async function parseProductRequest(req: NextRequest) {
   const formData = await req.formData();
   const body = formDataToObject(formData, {
     arrays: ["images"],
-    booleans: ["inStock", "isNegotiable", "isActive"],
+    booleans: ["inStock", "isNegotiable", "isActive", "pushToMarketplace"],
     numbers: ["price"],
   });
   const imageFiles = [...formData.getAll("images"), ...formData.getAll("image")].filter(
@@ -40,6 +39,7 @@ async function findAuthenticatedProduct(userId: string, productId: string) {
     },
     include: {
       category: true,
+      marketplaceCategory: true,
       location: true,
       store: {
         select: {
@@ -62,18 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!product) return errorResponse("Product not found", 404);
 
     const [productWithMetrics] = await attachProductMetrics(prisma, [product]);
-    const result = product.store.phone
-      ? {
-          ...productWithMetrics,
-          whatsappOrderLink: generateWhatsAppLink(
-            product.store.phone,
-            product.name,
-            product.price?.toString() ?? "0"
-          ),
-        }
-      : productWithMetrics;
-
-    return successResponse(result);
+    return successResponse(productWithMetrics);
   } catch (err) {
     console.error("[ME/PRODUCTS/:id/GET]", err);
     if ((err as Error).message?.includes("authorization")) return errorResponse((err as Error).message, 401);
@@ -92,20 +81,48 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const parsed = UpdateProductSchema.safeParse(body);
     if (!parsed.success) return errorResponse("Validation failed", 422, parsed.error.flatten());
 
-    const { categoryId, locationId } = parsed.data;
-    const [category, location] = await Promise.all([
-      categoryId ? prisma.productCategory.findUnique({ where: { id: categoryId } }) : Promise.resolve(null),
+    const { categoryId, marketplaceCategoryId, locationId, pushToMarketplace } = parsed.data;
+    const [location] = await Promise.all([
       locationId ? prisma.location.findUnique({ where: { id: locationId } }) : Promise.resolve(null),
     ]);
 
-    if (categoryId && !category) return errorResponse("Product category not found", 404);
+    const category = categoryId
+      ? await prisma.productCategory.findFirst({
+          where: {
+            id: categoryId,
+            isActive: true,
+            storeId: existing.storeId,
+          },
+        })
+      : null;
+    const marketplaceCategory = marketplaceCategoryId
+      ? await prisma.productCategory.findFirst({
+          where: { id: marketplaceCategoryId, isActive: true, storeId: null },
+        })
+      : null;
+
+    const willPublish = pushToMarketplace ?? existing.pushToMarketplace;
+    const nextMarketplaceCategoryId =
+      marketplaceCategoryId !== undefined ? marketplaceCategoryId : existing.marketplaceCategoryId;
+
+    if (categoryId && !category) return errorResponse("Store category not found", 404);
+    if (willPublish && !nextMarketplaceCategoryId) {
+      return errorResponse("Marketplace category is required when publishing to marketplace", 422);
+    }
+    if (marketplaceCategoryId && !marketplaceCategory) return errorResponse("Marketplace category not found", 404);
     if (locationId && !location) return errorResponse("Location not found", 404);
+
+    const updateData = {
+      ...parsed.data,
+      ...(pushToMarketplace === false ? { marketplaceCategoryId: null } : {}),
+    };
 
     const updated = await prisma.product.update({
       where: { id: params.id },
-      data: parsed.data,
+      data: updateData,
       include: {
         category: true,
+        marketplaceCategory: true,
         location: true,
         store: {
           select: {

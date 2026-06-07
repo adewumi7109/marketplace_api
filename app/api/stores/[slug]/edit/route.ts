@@ -68,6 +68,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     if (isMultipartRequest(req)) {
       const formData = await req.formData();
       body = formDataToObject(formData, { booleans: ["isActive"] });
+      ["address", "storeAddress", "bannerText", "description"].forEach((key) => {
+        const value = formData.get(key);
+        if (typeof value === "string") body[key] = value;
+      });
       const logo = formData.get("logo");
       const banner = formData.get("banner");
 

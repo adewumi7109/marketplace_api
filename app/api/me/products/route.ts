@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticate } from "@/lib/auth";
 import { CreateProductSchema } from "@/lib/validations/product";
 import { getPaginationParams } from "@/utils/pagination";
-import { generateSlug, generateWhatsAppLink } from "@/utils/slug";
+import { generateSlug } from "@/utils/slug";
 import { formDataToObject, isMultipartRequest, saveImageFile } from "@/lib/uploads";
 import { attachProductMetrics } from "@/lib/productMetrics";
 
@@ -24,7 +24,7 @@ async function parseProductRequest(req: NextRequest) {
   const formData = await req.formData();
   const body = formDataToObject(formData, {
     arrays: ["images"],
-    booleans: ["inStock", "isNegotiable"],
+    booleans: ["inStock", "isNegotiable", "pushToMarketplace"],
     numbers: ["price"],
   });
   const imageFiles = [...formData.getAll("images"), ...formData.getAll("image")].filter(
@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
         take: limit,
         include: {
           category: true,
+          marketplaceCategory: true,
           location: true,
           store: {
             select: {
@@ -124,24 +125,51 @@ export async function POST(req: NextRequest) {
     const parsed = CreateAuthenticatedProductSchema.safeParse(body);
     if (!parsed.success) return errorResponse("Validation failed", 422, parsed.error.flatten());
 
-    const { name, categoryId, locationId, storeId, ...rest } = parsed.data;
+    const { name, categoryId, marketplaceCategoryId, locationId, storeId, pushToMarketplace, ...rest } = parsed.data;
 
-    const [store, category, location] = await Promise.all([
+    const [store, location] = await Promise.all([
       prisma.store.findFirst({ where: { id: storeId, userId: user.userId } }),
-      prisma.productCategory.findUnique({ where: { id: categoryId } }),
       locationId ? prisma.location.findUnique({ where: { id: locationId } }) : Promise.resolve(null),
     ]);
 
     if (!store) return errorResponse("Store not found for authenticated user", 404);
-    if (!category) return errorResponse("Product category not found", 404);
+    const [category, marketplaceCategory] = await Promise.all([
+      categoryId
+        ? prisma.productCategory.findFirst({
+            where: {
+              id: categoryId,
+              isActive: true,
+              storeId: store.id,
+            },
+          })
+        : Promise.resolve(null),
+      marketplaceCategoryId
+        ? prisma.productCategory.findFirst({
+            where: { id: marketplaceCategoryId, isActive: true, storeId: null },
+          })
+        : Promise.resolve(null),
+    ]);
+    if (categoryId && !category) return errorResponse("Store category not found", 404);
+    if (pushToMarketplace && !marketplaceCategoryId) return errorResponse("Marketplace category is required when publishing to marketplace", 422);
+    if (marketplaceCategoryId && !marketplaceCategory) return errorResponse("Marketplace category not found", 404);
     if (locationId && !location) return errorResponse("Location not found", 404);
 
     const resolvedLocationId = locationId || store.locationId || undefined;
     const slug = await generateUniqueProductSlug(store.id, name);
     const product = await prisma.product.create({
-      data: { name, slug, storeId: store.id, categoryId, locationId: resolvedLocationId, ...rest },
+      data: {
+        name,
+        slug,
+        storeId: store.id,
+        categoryId,
+        marketplaceCategoryId: pushToMarketplace ? marketplaceCategoryId : undefined,
+        pushToMarketplace,
+        locationId: resolvedLocationId,
+        ...rest,
+      },
       include: {
         category: true,
+        marketplaceCategory: true,
         location: true,
         store: {
           select: {
@@ -155,18 +183,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const result = store.phone
-      ? {
-          ...product,
-          viewCount: 0,
-          whatsappClickCount: 0,
-          whatsappOrderLink: generateWhatsAppLink(
-            store.phone,
-            product.name,
-            product.price ? product.price.toString() : "0"
-          ),
-        }
-      : { ...product, viewCount: 0, whatsappClickCount: 0 };
+    const result = { ...product, viewCount: 0, whatsappClickCount: 0 };
 
     return successResponse(result, 201);
   } catch (err) {

@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
         user: { select: { id: true, name: true } },
         products: {
           where: { isActive: true },
-          include: { category: true, location: true },
+          include: { category: true, marketplaceCategory: true, location: true },
           orderBy: { createdAt: "desc" },
           take: 20,
         },

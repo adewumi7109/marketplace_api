@@ -139,17 +139,15 @@ async function main() {
     },
   });
 
-  const phoneCat = await prisma.productCategory.upsert({
-    where: { slug: "smartphones" },
-    update: {},
-    create: { name: "Smartphones", slug: "smartphones" },
-  });
+  async function ensureProductCategory(name: string, slug: string) {
+    return (
+      (await prisma.productCategory.findFirst({ where: { slug, storeId: null } })) ||
+      prisma.productCategory.create({ data: { name, slug } })
+    );
+  }
 
-  const laptopCat = await prisma.productCategory.upsert({
-    where: { slug: "laptops" },
-    update: {},
-    create: { name: "Laptops", slug: "laptops" },
-  });
+  const phoneCat = await ensureProductCategory("Smartphones", "smartphones");
+  const laptopCat = await ensureProductCategory("Laptops", "laptops");
 
   const adminId = await ensureUser("admin@market.com", "Admin@1234", "Admin");
   const merchantId = await ensureUser("merchant@market.com", "Merchant@1234", "Merchant");
