@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { extname, join } from "path";
 import { createSupabaseAdminClient } from "@/lib/supabase";
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
@@ -25,7 +25,7 @@ export async function saveImageFile(
   }
 
   if (file.size > MAX_IMAGE_SIZE) {
-    throw new Error("Image must be 5MB or smaller");
+    throw new Error("Image must be 4MB or smaller");
   }
 
   const supabaseAdmin = createSupabaseAdminClient();
