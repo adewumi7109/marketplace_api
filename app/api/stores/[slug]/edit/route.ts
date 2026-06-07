@@ -101,6 +101,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       ...data
     } = parsed.data;
     const updateData: Prisma.StoreUpdateInput = { ...data };
+    const nextAddress = data.storeAddress ?? data.address;
+    if (nextAddress !== undefined) {
+      updateData.storeAddress = nextAddress;
+      updateData.address = nextAddress;
+    }
 
     if ((city || state) && (!city || !state)) {
       return errorResponse("Both city and state are required for store location", 422);

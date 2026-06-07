@@ -74,6 +74,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
 
     const { slug: requestedSlug, ...data } = parsed.data;
     const updateData: Prisma.StoreUpdateInput = { ...data };
+    const nextAddress = data.storeAddress ?? data.address;
+    if (nextAddress !== undefined) {
+      updateData.storeAddress = nextAddress;
+      updateData.address = nextAddress;
+    }
 
     if (requestedSlug !== undefined) {
       const slug = generateSlug(requestedSlug);

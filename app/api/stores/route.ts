@@ -84,6 +84,11 @@ export async function POST(req: NextRequest) {
       longitude,
       ...rest
     } = parsed.data;
+    const address = rest.storeAddress ?? rest.address;
+    const storeData = {
+      ...rest,
+      ...(address !== undefined ? { address, storeAddress: address } : {}),
+    };
 
     if ((city || state) && (!city || !state)) {
       return errorResponse("Both city and state are required for store location", 422);
@@ -120,7 +125,7 @@ export async function POST(req: NextRequest) {
         latitude: latitude ?? location?.latitude,
         longitude: longitude ?? location?.longitude,
         userId: user.userId,
-        ...rest,
+        ...storeData,
       },
       include: {
         template: true,
