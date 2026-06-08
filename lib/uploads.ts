@@ -1,15 +1,11 @@
-import { mkdir, writeFile } from "fs/promises";
 import { randomUUID } from "crypto";
-import { extname, join } from "path";
 import { createSupabaseAdminClient } from "@/lib/supabase";
 
-const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
-  "image/gif": ".gif",
-  "image/svg+xml": ".svg",
 };
 
 export function isMultipartRequest(req: Request) {
@@ -20,12 +16,16 @@ export async function saveImageFile(
   file: File,
   folder: "stores" | "products"
 ) {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Only image files are allowed");
+  if (!MIME_EXTENSIONS[file.type]) {
+    throw new Error("Only JPG, PNG, or WebP images are allowed");
+  }
+
+  if (file.size <= 0) {
+    throw new Error("Image file is empty or invalid");
   }
 
   if (file.size > MAX_IMAGE_SIZE) {
-    throw new Error("Image must be 4MB or smaller");
+    throw new Error("Image must be 10MB or smaller");
   }
 
   const supabaseAdmin = createSupabaseAdminClient();
@@ -34,10 +34,7 @@ export async function saveImageFile(
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
   }
 
-  const extension =
-    MIME_EXTENSIONS[file.type] ||
-    extname(file.name).toLowerCase() ||
-    ".jpg";
+  const extension = MIME_EXTENSIONS[file.type];
 
   const filename = `${folder}/${Date.now()}-${randomUUID()}${extension}`;
 

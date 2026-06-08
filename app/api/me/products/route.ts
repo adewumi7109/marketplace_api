@@ -18,7 +18,7 @@ const CreateAuthenticatedProductSchema = CreateProductSchema.extend({
 
 async function parseProductRequest(req: NextRequest) {
   if (!isMultipartRequest(req)) {
-    return req.json();
+    return { body: await req.json(), imageFiles: [] as File[] };
   }
 
   const formData = await req.formData();
@@ -30,13 +30,8 @@ async function parseProductRequest(req: NextRequest) {
   const imageFiles = [...formData.getAll("images"), ...formData.getAll("image")].filter(
     (value): value is File => value instanceof File && value.size > 0
   );
-  const uploadedImages = await Promise.all(imageFiles.map((file) => saveImageFile(file, "products")));
 
-  if (uploadedImages.length > 0) {
-    body.images = [...(Array.isArray(body.images) ? body.images : []), ...uploadedImages];
-  }
-
-  return body;
+  return { body, imageFiles };
 }
 
 async function generateUniqueProductSlug(storeId: string, name: string) {
@@ -58,6 +53,7 @@ export async function GET(req: NextRequest) {
     const user = await authenticate(req);
     const { searchParams } = new URL(req.url);
     const { page, limit, skip } = getPaginationParams(searchParams);
+    const includeMetrics = searchParams.get("includeMetrics") === "true";
     const categoryId = searchParams.get("categoryId");
     const storeId = searchParams.get("storeId");
     const search = searchParams.get("search");
@@ -108,7 +104,10 @@ export async function GET(req: NextRequest) {
       prisma.product.count({ where }),
     ]);
 
-    const productsWithMetrics = await attachProductMetrics(prisma, products);
+    const productsWithMetrics = includeMetrics
+      ? await attachProductMetrics(prisma, products)
+      : products.map((product) => ({ ...product, viewCount: 0, whatsappClickCount: 0 }));
+
     return paginatedResponse(productsWithMetrics, total, page, limit);
   } catch (err) {
     console.error("[ME/PRODUCTS/GET]", err);
@@ -121,7 +120,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await authenticate(req);
-    const body = await parseProductRequest(req);
+    const { body, imageFiles } = await parseProductRequest(req);
     const parsed = CreateAuthenticatedProductSchema.safeParse(body);
     if (!parsed.success) return errorResponse("Validation failed", 422, parsed.error.flatten());
 
@@ -154,6 +153,10 @@ export async function POST(req: NextRequest) {
     if (marketplaceCategoryId && !marketplaceCategory) return errorResponse("Marketplace category not found", 404);
     if (locationId && !location) return errorResponse("Location not found", 404);
 
+    const uploadedImages =
+      imageFiles.length > 0
+        ? await Promise.all(imageFiles.map((file) => saveImageFile(file, "products")))
+        : [];
     const resolvedLocationId = locationId || store.locationId || undefined;
     const slug = await generateUniqueProductSlug(store.id, name);
     const product = await prisma.product.create({
@@ -166,6 +169,7 @@ export async function POST(req: NextRequest) {
         pushToMarketplace,
         locationId: resolvedLocationId,
         ...rest,
+        images: [...(parsed.data.images ?? []), ...uploadedImages],
       },
       include: {
         category: true,

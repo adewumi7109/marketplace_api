@@ -183,6 +183,7 @@ model Location {
   products Product[]
   stores   Store[]
 
+  @@unique([city])
   @@unique([city, state, country])
   @@index([city, state, country])
   @@index([latitude, longitude])

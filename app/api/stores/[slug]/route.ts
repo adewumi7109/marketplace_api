@@ -6,32 +6,38 @@ import { authenticate } from "@/lib/auth";
 import { UpdateStoreSchema } from "@/lib/validations/store";
 import { formDataToObject, isMultipartRequest, saveImageFile } from "@/lib/uploads";
 import { generateSlug } from "@/utils/slug";
-import { attachProductMetrics } from "@/lib/productMetrics";
 
 // GET /api/stores/:slug — public
-export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
+    const includeProducts = new URL(req.url).searchParams.get("includeProducts") === "true";
     const store = await prisma.store.findUnique({
       where: { slug: params.slug },
       include: {
         template: true,
         location: true,
         user: { select: { id: true, name: true } },
-        products: {
-          where: { isActive: true },
-          include: { category: true, marketplaceCategory: true, location: true },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        },
+        ...(includeProducts
+          ? {
+              products: {
+                where: { isActive: true },
+                include: { category: true, marketplaceCategory: true, location: true },
+                orderBy: { createdAt: "desc" as const },
+                take: 20,
+              },
+            }
+          : {}),
         _count: { select: { products: true } },
       },
     });
 
     if (!store) return errorResponse("Store not found", 404);
 
-    const products = await attachProductMetrics(prisma, store.products);
-    const storeViewCount = await prisma.storeView.count({ where: { storeId: store.id } });
-    return successResponse({ ...store, products, storeViewCount });
+    return successResponse({
+      ...store,
+      products: "products" in store ? store.products : [],
+      storeViewCount: 0,
+    });
   } catch (err) {
     console.error("[STORES/:slug/GET]", err);
     return serverErrorResponse(err);

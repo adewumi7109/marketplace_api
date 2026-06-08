@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { authenticate } from "@/lib/auth";
 import { normalizeLocationName } from "@/lib/locations/service";
 
 const CreateLocationSchema = z.object({
@@ -64,8 +63,6 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await authenticate(req);
-
     const body = await req.json();
     const parsed = CreateLocationSchema.safeParse(body);
 
@@ -80,8 +77,6 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.location.findFirst({
       where: {
         city: { equals: city, mode: "insensitive" },
-        state: { equals: state, mode: "insensitive" },
-        country: { equals: country, mode: "insensitive" },
       },
     });
 

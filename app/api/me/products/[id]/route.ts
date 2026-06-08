@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 async function parseProductRequest(req: NextRequest) {
   if (!isMultipartRequest(req)) {
-    return req.json();
+    return { body: await req.json(), imageFiles: [] as File[] };
   }
 
   const formData = await req.formData();
@@ -22,13 +22,8 @@ async function parseProductRequest(req: NextRequest) {
   const imageFiles = [...formData.getAll("images"), ...formData.getAll("image")].filter(
     (value): value is File => value instanceof File && value.size > 0
   );
-  const uploadedImages = await Promise.all(imageFiles.map((file) => saveImageFile(file, "products")));
 
-  if (uploadedImages.length > 0) {
-    body.images = [...(Array.isArray(body.images) ? body.images : []), ...uploadedImages];
-  }
-
-  return body;
+  return { body, imageFiles };
 }
 
 async function findAuthenticatedProduct(userId: string, productId: string) {
@@ -77,7 +72,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const existing = await findAuthenticatedProduct(user.userId, params.id);
     if (!existing) return errorResponse("Product not found", 404);
 
-    const body = await parseProductRequest(req);
+    const { body, imageFiles } = await parseProductRequest(req);
     const parsed = UpdateProductSchema.safeParse(body);
     if (!parsed.success) return errorResponse("Validation failed", 422, parsed.error.flatten());
 
@@ -112,8 +107,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (marketplaceCategoryId && !marketplaceCategory) return errorResponse("Marketplace category not found", 404);
     if (locationId && !location) return errorResponse("Location not found", 404);
 
+    const uploadedImages =
+      imageFiles.length > 0
+        ? await Promise.all(imageFiles.map((file) => saveImageFile(file, "products")))
+        : [];
+
     const updateData = {
       ...parsed.data,
+      ...(uploadedImages.length > 0
+        ? { images: [...(parsed.data.images ?? []), ...uploadedImages] }
+        : {}),
       ...(pushToMarketplace === false ? { marketplaceCategoryId: null } : {}),
     };
 

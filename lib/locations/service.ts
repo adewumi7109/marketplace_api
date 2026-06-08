@@ -74,8 +74,6 @@ export async function resolveLocation(
   const existing = await prisma.location.findFirst({
     where: {
       city: { equals: city, mode: "insensitive" },
-      state: { equals: state, mode: "insensitive" },
-      country: { equals: country, mode: "insensitive" },
     },
   });
 

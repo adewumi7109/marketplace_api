@@ -1,24 +1,15 @@
-import { successResponse, errorResponse, serverErrorResponse } from "@/utils/response";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { errorResponse, serverErrorResponse, successResponse } from "@/utils/response";
 
-// GET /api/stores/:slug/products/:productSlug - public
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { slug: string; productSlug: string } }
-) {
+// GET /api/products/:id - public product detail
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const product = await prisma.product.findFirst({
       where: {
+        id: params.id,
         isActive: true,
-        store: {
-          slug: params.slug,
-          isActive: true,
-        },
-        OR: [
-          { slug: params.productSlug },
-          { id: params.productSlug },
-        ],
+        store: { isActive: true },
       },
       include: {
         category: true,
@@ -46,19 +37,15 @@ export async function GET(
       },
     });
 
-    if (!product) {
-      return errorResponse("Product not found", 404);
-    }
+    if (!product) return errorResponse("Product not found", 404);
 
-    const result = {
+    return successResponse({
       ...product,
       viewCount: 0,
       whatsappClickCount: 0,
-    };
-
-    return successResponse(result);
+    });
   } catch (err) {
-    console.error("[STORES/:slug/PRODUCTS/:productSlug/GET]", err);
+    console.error("[PRODUCTS/:id/GET]", err);
     return serverErrorResponse(err);
   }
 }

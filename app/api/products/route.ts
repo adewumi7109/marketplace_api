@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
 
     const { page, limit, skip } = getPaginationParams(searchParams);
+    const includeMetrics = searchParams.get("includeMetrics") === "true";
 
     // ───────────────────── FILTERS ─────────────────────
     const categoryId = searchParams.get("categoryId");
@@ -138,7 +139,10 @@ export async function GET(req: NextRequest) {
       prisma.product.count({ where }),
     ]);
 
-    const productsWithMetrics = await attachProductMetrics(prisma, products);
+    const productsWithMetrics = includeMetrics
+      ? await attachProductMetrics(prisma, products)
+      : products.map((product) => ({ ...product, viewCount: 0, whatsappClickCount: 0 }));
+
     return paginatedResponse(productsWithMetrics, total, page, limit);
   } catch (err) {
     console.error("[PRODUCT_FETCH_ERROR]", err);
