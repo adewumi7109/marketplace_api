@@ -17,21 +17,39 @@ const CreateAuthenticatedProductSchema = CreateProductSchema.extend({
 });
 
 async function parseProductRequest(req: NextRequest) {
-  if (!isMultipartRequest(req)) {
-    return { body: await req.json(), imageFiles: [] as File[] };
+  const contentType = req.headers.get("content-type") || "";
+  
+  // More permissive check for multipart
+  const isMultipart = contentType.toLowerCase().includes("multipart/form-data");
+  
+  if (!isMultipart) {
+    try {
+      return { body: await req.json(), imageFiles: [] as File[] };
+    } catch {
+      // If JSON parse fails, try to read as text for debugging
+      const text = await req.text();
+      console.error("[ME/PRODUCTS/POST] Non-JSON body:", text.slice(0, 500));
+      throw new Error("Invalid request format. Expected JSON or multipart/form-data.");
+    }
   }
 
-  const formData = await req.formData();
-  const body = formDataToObject(formData, {
-    arrays: ["images"],
-    booleans: ["inStock", "isNegotiable", "pushToMarketplace"],
-    numbers: ["price"],
-  });
-  const imageFiles = [...formData.getAll("images"), ...formData.getAll("image")].filter(
-    (value): value is File => value instanceof File && value.size > 0
-  );
+  try {
+    const formData = await req.formData();
+    const body = formDataToObject(formData, {
+      arrays: ["images"],
+      booleans: ["inStock", "isNegotiable", "pushToMarketplace"],
+      numbers: ["price"],
+    });
+    
+    const imageFiles = [...formData.getAll("images"), ...formData.getAll("image")].filter(
+      (value): value is File => value instanceof File && value.size > 0
+    );
 
-  return { body, imageFiles };
+    return { body, imageFiles };
+  } catch (err) {
+    console.error("[ME/PRODUCTS/POST] FormData parse error:", err);
+    throw new Error("Failed to parse form data. Ensure images are under 10MB each.");
+  }
 }
 
 async function generateUniqueProductSlug(storeId: string, name: string) {
